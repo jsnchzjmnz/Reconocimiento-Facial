@@ -25,14 +25,14 @@ indican qué funciones deben realizar o no
 4 : Carga Famoso en la base de datos
 5 : Muestra el resultado
 */
-int estado=0;
+int estado;
 
 //Utilizados para La manipilación de la imagen
 JSONObject json; //Archivo JSON que contiene la base de datos
 PImage imagen; // Se refiere a la imagen sobre la que se trabajará
 String rutaImagen="";//"Imag002.jpg";
 int numPunto; // controla el orden de evaluación de los puntos
-String respuesta;
+String respuesta="";
 
 /*
 Utilizados para realizar el análisis del vector
@@ -51,7 +51,10 @@ Punto[] nuevosPuntos; // almacena los 11 puntos a evaluar de la imagen cargada p
 String texto="";
 
 void setup() {
-  size(900,720);
+  estado=0;
+  cargando=false;
+  respuesta="";
+  size(1020,820);
   configurarMenu();
   nuevosPuntos = new Punto[11];
   numPunto=0;
@@ -76,6 +79,7 @@ void configurarMenu(){
 void draw() {
   if(estado==0){
     dibujarMenu();
+    text(respuesta,350,200);
   }else if(estado==1){
     if(cargando==false){
       cargando=true;
@@ -98,7 +102,21 @@ void draw() {
     fill(0);
     text("Analizar",botonPrincipalX+25,botonPrincipalY+30);
   }else if(estado==3){
-    
+    //estado=0;
+    update(mouseX, mouseY);
+    background(currentColor);
+    rutaImagen="";
+    text(respuesta,350,200);
+      
+    if (botonPrincipalOver) {
+      fill(botonHighlight);
+    } else {
+      fill(botonColor);
+    }
+    stroke(0);
+    rect(botonPrincipalX, botonPrincipalY, tamanioBotonX, tamanioBotonY);
+    fill(0);
+    text("Continuar",botonPrincipalX+20,botonPrincipalY+30);
   }
 }
 
@@ -121,15 +139,7 @@ void dibujarMenu(){
   update(mouseX, mouseY);
   background(currentColor);
   text(texto,100,200);
-  if (botonSecundarioOver) {
-    fill(botonHighlight);
-  } else {
-    fill(botonColor);
-  }
-  stroke(255);
-  rect(botonSecundarioX, botonSecundarioY, tamanioBotonX, tamanioBotonY);
-  fill(0);
-  text("Mapear",botonSecundarioX+25,botonSecundarioY+30);
+    
   if (botonPrincipalOver) {
     fill(botonHighlight);
   } else {
@@ -168,9 +178,7 @@ void mousePressed() {
     if (botonPrincipalOver) {
        estado=1; 
     }
-    if (botonSecundarioOver) {
-       texto="Mapear"; 
-    }
+    
   }else if(estado==1){
     definirPunto(mouseX,mouseY);  
   }else if(estado==2){
@@ -181,18 +189,33 @@ void mousePressed() {
        int contador=0;
        cantFamosos=6;
        boolean flag=true;
-       while(contador<cantFamosos && flag){
-         if(vectoresSemejantes(vectoresFamosos[contador],vector)){
-            respuesta="La fotografía introducida corresponde al rostro de:" +nombresActores[contador];
-            flag=false;
-         }else{
-            respuesta="pos ni tan iguales"; 
+       int famosoSimilar=-1;
+       double gradoSimilitud=-1;
+       while(contador<cantFamosos){
+         double resp=vectoresSemejantes(vectoresFamosos[contador],vector);
+         if(resp>=0){
+            if(famosoSimilar==-1){
+              famosoSimilar=contador;
+              gradoSimilitud=resp;
+            }else if(resp<gradoSimilitud){
+              famosoSimilar=contador;
+              gradoSimilitud=resp;
+            }
          }
          contador++;
        }
-       text(respuesta,20,30);
+       if(famosoSimilar>=0){
+          respuesta="La fotografía introducida corresponde al rostro de:" +nombresActores[famosoSimilar];
+          estado=3;
+          flag=false;
+       }else{
+         respuesta="No se reconoció a la persona en la fotografía"; 
+         estado=3;
+       }
        print(respuesta);
     }
+  }else if(estado==3){
+    setup();
   }
 }
 
@@ -201,14 +224,7 @@ Se encarga de generar el vector de las distancias existentes en las 55 posibles 
 */
 boolean generarVector(){
    int contador=0;
-   /*
-   while(contador<11){
-     print("X: "+nuevosPuntos[contador].x);
-     print("Y: "+nuevosPuntos[contador].y);
-     print("\n");
-     contador++;
-   }
-   */
+   
    unidadDeMedida=calcularDistancia(nuevosPuntos[8],nuevosPuntos[9]);
    //print("Distancia: "+d1);
    //print("\n");
@@ -251,7 +267,7 @@ Se encarga de cargar la foto en la ventana (mostrarla)
 void cargarFoto(String foto){
   background(baseColor);
   imagen = loadImage(foto); 
-  image(imagen, (width - (imagen.width*1.7))/2, (height-(imagen.height*1.7))/2, imagen.width*1.7, imagen.height*1.7);
+  image(imagen, (width - (imagen.width*2))/2, (height-(imagen.height*2))/2, imagen.width*2, imagen.height*2);
   mostrarPuntos();
   if(estado==1){
     definirUbicacionPunto();
@@ -303,7 +319,7 @@ void cargarVectores(){
     }
     contador++; 
   }
-  print("dist:"+vectoresFamosos[0][3]);
+  //print("dist:"+vectoresFamosos[0][3]);
 }
 
 double potencia2(double d){
@@ -350,27 +366,32 @@ double calcularDistancia(Punto p1, Punto p2){
 }
 
 
-boolean vectoresSemejantes(double[] vBase, double[] vX){
-  double maxDifAceptable=0.7;
+double vectoresSemejantes(double[] vBase, double[] vX){
+  double maxDifAceptable=0.20;
   int contador=0;
   boolean flag=true;
+  double gradoSimilitud=-1;
   
   while(contador<55){
     print("\"d"+(contador+1)+"\": "+vX[contador]+",\n");
     contador++; 
   }
-  
   contador=0;
   while (contador<55 && flag){
-    print("comparando"+ vBase[contador] +" contra "+vX[contador]+", con diferencia aceptable de +- "+maxDifAceptable+"\n");
-      if(((vBase[contador]-maxDifAceptable)<vX[contador]) && ((vBase[contador]+maxDifAceptable)>vX[contador])){
+    print("comparando"+ vBase[contador] +" contra "+vX[contador]+", con diferencia aceptable de +- "+(vBase[contador]*maxDifAceptable)+"\n");
+      if(((vBase[contador]-(vBase[contador]*maxDifAceptable))<vX[contador]) && ((vBase[contador]+(vBase[contador]*maxDifAceptable)>vX[contador]))){
+        gradoSimilitud+=abs((float)(vBase[contador]-(vBase[contador]*maxDifAceptable)));
         flag=true;
       }else{
+        gradoSimilitud=-1;
         flag=false;
       }
       contador++;
   }
-  return flag;
+  if(gradoSimilitud>-1){
+    gradoSimilitud+=1;
+  }
+  return gradoSimilitud;
 }
 
 void definirPunto(int x, int y){
